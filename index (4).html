@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Multitela YouTube</title>
+<style>
+:root{--bg:#e9e6df;--bar:#fbfaf7;--ink:#1d2430;--mute:#6b7280;--line:#cfcac0;--acc:#1f5eff;--shadow:rgba(20,30,50,.25);--warn:#fff3cd;--warnink:#664d03}
+@media (prefers-color-scheme:dark){:root{--bg:#171c26;--bar:#202736;--ink:#e8ebf2;--mute:#97a0b3;--line:#323b50;--acc:#6e9bff;--shadow:rgba(0,0,0,.5);--warn:#3b3220;--warnink:#f1d28a}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;gap:8px;align-items:center;padding:10px 12px;background:var(--bar);border-bottom:1px solid var(--line);flex-wrap:wrap}
+h1{font-size:17px;margin:0 8px 0 0}
+input{flex:1 1 260px;min-width:0;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+button{font:inherit;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button:hover{border-color:var(--acc)}
+:is(input,button,a):focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+label.q{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--mute)}
+#qty{flex:0 0 68px;width:68px;padding:9px 8px;text-align:center}
+#msg{width:100%;font-size:13px;color:var(--mute);min-height:18px}
+#msg.err{color:#d6336c}
+#warn{display:none;width:100%;background:var(--warn);color:var(--warnink);padding:8px 10px;border-radius:8px;font-size:13px}
+#canvas{position:relative;flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+#stage{position:relative;min-width:100%;min-height:100%}
+#empty{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:var(--mute);padding:24px;pointer-events:none}
+.win{position:absolute;display:flex;flex-direction:column;background:var(--bar);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 22px var(--shadow);overflow:hidden;min-width:140px;min-height:100px}
+.win.tile{transition:left .2s,top .2s,width .2s,height .2s}
+.tb{display:flex;align-items:center;gap:6px;padding:5px 8px;cursor:grab;background:var(--bar);border-bottom:1px solid var(--line);user-select:none}
+.mv{touch-action:none;cursor:grab}
+#vs{position:fixed;display:none;width:26px;background:rgba(127,127,127,.2);border-radius:13px;z-index:1000001;touch-action:none}
+#vs i{position:absolute;left:3px;right:3px;top:0;height:60px;border-radius:10px;background:var(--acc);opacity:.9}
+#ctl{display:contents}#ctl.off{display:none}
+h1 small{color:var(--mute);font-weight:400;font-size:11px}
+.tb span{flex:1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb button,.tb a{padding:2px 6px;font-size:13px;line-height:1.4;border:1px solid var(--line);border-radius:6px;color:var(--ink);text-decoration:none;background:transparent}
+.win iframe{flex:1;width:100%;border:0;background:#000}
+.dragging iframe{pointer-events:none}
+.win.mini{position:fixed;z-index:999999!important;min-width:0;min-height:0}.win.mini .rz,.win.mini .tb a,.win.mini .mv{display:none}.win.mini .tb{padding:3px 6px}
+label.q input[type=checkbox]{flex:none;width:18px;height:18px;padding:0;min-width:0}
+#trayBar{position:fixed;display:none;align-items:center;justify-content:space-between;height:28px;padding:0 6px;background:var(--bar);border-top:1px solid var(--line);z-index:1000000;font-size:12px;color:var(--mute)}
+#trayBar button{padding:0 14px;height:24px;font-size:12px}.win.mini .tb{cursor:default}
+.rz{position:absolute;right:0;bottom:0;width:20px;height:20px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 55%,#fff 55%,#fff 63%,transparent 63%,transparent 76%,#fff 76%,#fff 84%,transparent 84%);filter:drop-shadow(0 0 1px #000)}
+@media (prefers-reduced-motion:reduce){.win.tile{transition:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Multitela YouTube <small>v6</small></h1>
+  <button id="hide">Recolher ▲</button>
+  <div id="ctl">
+  <input id="url" type="text" placeholder="Cole um ou mais links do YouTube" aria-label="Links do YouTube" autocomplete="off">
+  <label class="q">Janelas <input id="qty" type="number" inputmode="numeric" min="1" max="20" value="1" aria-label="Número de janelas a abrir"></label>
+  <label class="q"><input type="checkbox" id="minOpen"> Abrir minimizadas</label>
+  <button class="p" id="add">Adicionar</button>
+  <button id="tile">Organizar em grade</button>
+  <button id="more">+ Espaço</button>
+  <button id="clear">Fechar todas</button>
+  <div id="warn">Você abriu este arquivo direto do disco (file://). O YouTube pode mostrar “Erro 153” nos vídeos. Para resolver, rode um servidor local na pasta do arquivo (python3 -m http.server 8000 e abra http://localhost:8000/multitela-youtube.html) ou hospede o arquivo em qualquer site (GitHub Pages, Netlify, Vercel).</div>
+  <div id="msg" role="status"></div>
+  </div>
+</header>
+<main id="canvas"><div id="stage"></div><div id="empty"><div><strong>Nenhum vídeo aberto</strong><br>Cole um link acima. Cada vídeo abre numa janela que você arrasta e redimensiona.</div></div></main>
+<div id="vs" aria-label="Barra de rolagem das janelas"><i></i></div>
+<div id="trayBar"><button id="tprev" aria-label="Anteriores">◀</button><span></span><button id="tnext" aria-label="Próximas">▶</button></div>
+<script>
+(function(){
+  var canvas=document.getElementById('canvas'),input=document.getElementById('url'),msg=document.getElementById('msg'),empty=document.getElementById('empty');
+  var wins=[],z=1,n=0,extra=0,stage=document.getElementById('stage');
+  if(location.protocol==='file:')document.getElementById('warn').style.display='block';
+
+  function parse(s){
+    var l=(s.match(/[?&]list=([\w-]+)/)||[])[1];
+    var m=s.match(/(?:v=|youtu\.be\/|shorts\/|embed\/|live\/)([\w-]{11})/)||(/^[\w-]{11}$/.test(s)?[0,s]:null);
+    if(m)return {v:m[1],list:l};
+    if(l)return {list:l};
+    return null;
+  }
+  function src(p){
+    var q='?rel=0&playsinline=1';
+    if(p.v)return 'https://www.youtube-nocookie.com/embed/'+p.v+q+(p.list?'&list='+p.list:'');
+    return 'https://www.youtube-nocookie.com/embed/videoseries'+q+'&list='+p.list;
+  }
+  function watch(p){return p.v?'https://www.youtube.com/watch?v='+p.v:'https://www.youtube.com/playlist?list='+p.list;}
+  function note(t,err){msg.textContent=t||'';msg.className=err?'err':'';}
+  function front(r){r.el.style.zIndex=++z;}
+  function geo(el){return {x:el.offsetLeft,y:el.offsetTop,w:el.offsetWidth,h:el.offsetHeight};}
+  function pos(el,x,y,w,h){el.style.left=x+'px';el.style.top=y+'px';el.style.width=w+'px';el.style.height=h+'px';}
+  function save(){try{localStorage.setItem('ytmulti2',JSON.stringify(wins.map(function(r){return {p:r.p,g:r.mini?r.saved:geo(r.el),m:!!r.mini}})));}catch(e){}}
+  var MW=150,MH=100,toff=0;
+  function trayH(){return wins.some(function(r){return r.mini})?MH+42:0;}
+  function perRow(){return Math.max(1,Math.floor((canvas.getBoundingClientRect().width-8)/(MW+8)));}
+  function dock(){
+    var minis=wins.filter(function(r){return r.mini}),rc=canvas.getBoundingClientRect(),bar=document.getElementById('trayBar'),per=perRow();
+    toff=Math.max(0,Math.min(toff,Math.max(0,minis.length-per)));
+    wins.forEach(function(r){if(!r.mini)r.el.style.visibility='';});
+    minis.forEach(function(r,i){var k=i-toff;pos(r.el,rc.left+8+k*(MW+8),rc.bottom-MH-34,MW,MH);r.el.style.visibility=(k>=0&&k<per)?'visible':'hidden';});
+    bar.style.display=minis.length?'flex':'none';
+    if(minis.length){bar.style.left=rc.left+'px';bar.style.width=rc.width+'px';bar.style.top=(rc.bottom-28)+'px';
+      bar.querySelector('span').textContent='Minimizadas '+(toff+1)+'–'+Math.min(minis.length,toff+per)+' de '+minis.length;}
+  }
+  window.addEventListener('resize',function(){dock();updVS();});
+  canvas.addEventListener('scroll',updVS);
+  function updVS(){
+    var vs=document.getElementById('vs'),t=vs.firstElementChild,rc=canvas.getBoundingClientRect(),sh=canvas.scrollHeight,ch=canvas.clientHeight;
+    if(sh<=ch+2){vs.style.display='none';return;}
+    var H=ch-12,th=Math.max(56,H*ch/sh),room=H-th;
+    vs.style.display='block';vs.style.top=(rc.top+6)+'px';vs.style.height=H+'px';vs.style.left=(rc.right-30)+'px';
+    t.style.height=th+'px';t.style.top=(room*(canvas.scrollTop/(sh-ch)))+'px';
+  }
+  function anyOverlap(){
+    var l=wins.filter(function(r){return !r.mini}).map(function(r){return geo(r.el)});
+    for(var i=0;i<l.length;i++)for(var j=i+1;j<l.length;j++){var a=l[i],b=l[j];if(a.x+a.w-4>b.x&&b.x+b.w-4>a.x&&a.y+a.h-4>b.y&&b.y+b.h-4>a.y)return true;}
+    return false;
+  }
+  function grow(shrink){
+    var rx=0,ry=0,cw=canvas.clientWidth,ch=canvas.clientHeight;
+    wins.forEach(function(r){if(r.mini)return;rx=Math.max(rx,r.el.offsetLeft+r.el.offsetWidth);ry=Math.max(ry,r.el.offsetTop+r.el.offsetHeight);});
+    var W=rx+40,H=Math.max(ry+40,ch)+extra;
+    if(!shrink){W=Math.max(W,parseFloat(stage.style.width)||0);H=Math.max(H,parseFloat(stage.style.height)||0);}
+    stage.style.width=W>cw?W+'px':'';
+    stage.style.height=H>ch?H+'px':'';
+    updVS();
+  }
+  function sync(){empty.style.display=wins.length?'none':'grid';grow(true);save();}
+
+  function gridGeo(){
+    var cw=canvas.clientWidth-30,gp=8,cols=cw<600?2:Math.max(2,Math.floor(cw/340)),w=Math.floor((cw-gp*(cols+1))/cols);
+    return {cols:cols,gp:gp,w:w,h:Math.round(w*9/16)+34};
+  }
+  function slot(gm){
+    for(var k=0;k<2000;k++){
+      var x=gm.gp+(k%gm.cols)*(gm.w+gm.gp),y=gm.gp+Math.floor(k/gm.cols)*(gm.h+gm.gp);
+      var busy=wins.some(function(r){if(r.mini)return false;var q=geo(r.el);return !(q.x+q.w<=x+2||q.x>=x+gm.w-2||q.y+q.h<=y+2||q.y>=y+gm.h-2);});
+      if(!busy)return {x:x,y:y};
+    }
+    return {x:8,y:8};
+  }
+  function open(p,g,fm){
+    var gm=gridGeo(),w=g?g.w:gm.w,h=g?g.h:gm.h,x,y;
+    if(g){x=g.x;y=g.y;}else{var sl=slot(gm);x=sl.x;y=sl.y;}
+    var el=document.createElement('div');el.className='win';
+    el.innerHTML='<div class="tb"><button class="mv" title="Mover" aria-label="Mover janela">✥</button><span></span><a target="_blank" rel="noopener noreferrer" title="Abrir no YouTube">YT</a><button class="mn" title="Minimizar (continua tocando)" aria-label="Minimizar">–</button><button class="cl" title="Fechar" aria-label="Fechar janela">✕</button></div><iframe allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe><div class="rz"></div>';
+    var rec={p:p,el:el};
+    el.querySelector('span').textContent=p.v?'Vídeo '+p.v:'Playlist '+p.list;
+    el.querySelector('a').href=watch(p);
+    el.querySelector('iframe').src=src(p);
+    pos(el,x,y,w,h);stage.appendChild(el);front(rec);wins.push(rec);
+    el.querySelector('.cl').onclick=function(){el.remove();wins=wins.filter(function(r){return r!==rec});dock();sync();};
+    var mn=el.querySelector('.mn');
+    mn.onclick=function(){
+      if(!rec.mini){rec.saved=geo(el);rec.mini=true;el.classList.add('mini');el.classList.remove('tile');mn.textContent='▢';mn.title='Restaurar';}
+      else{rec.mini=false;el.classList.remove('mini');var g=rec.saved;pos(el,g.x,g.y,g.w,g.h);front(rec);mn.textContent='–';mn.title='Minimizar (continua tocando)';}
+      dock();grow(true);save();
+    };
+    drag(el.querySelector('.tb'),rec,'move');drag(el.querySelector('.mv'),rec,'move');drag(el.querySelector('.rz'),rec,'size');
+    el.addEventListener('pointerdown',function(){front(rec)},true);
+    if(fm||(!g&&document.getElementById('minOpen').checked))mn.onclick();
+    sync();
+  }
+
+  function drag(handle,rec,mode){
+    handle.addEventListener('pointerdown',function(e){
+      if((e.target.closest('button,a')&&!handle.classList.contains('mv'))||rec.mini)return;
+      if(handle.classList.contains('tb')&&e.pointerType==='touch')return;
+      e.preventDefault();
+      var el=rec.el,g=geo(el),sx=e.clientX,sy=e.clientY;
+      el.classList.remove('tile');canvas.classList.add('dragging');
+      handle.setPointerCapture(e.pointerId);
+      function mv(ev){
+        var dx=ev.clientX-sx,dy=ev.clientY-sy;
+        if(mode==='move')pos(el,g.x+dx,g.y+dy,g.w,g.h);
+        else pos(el,g.x,g.y,Math.max(140,g.w+dx),Math.max(100,g.h+dy));
+        grow();
+      }
+      function up(){handle.removeEventListener('pointermove',mv);handle.removeEventListener('pointerup',up);canvas.classList.remove('dragging');grow(true);save();}
+      handle.addEventListener('pointermove',mv);handle.addEventListener('pointerup',up);
+    });
+  }
+
+  function tile(){
+    var list=wins.filter(function(r){return !r.mini});if(!list.length)return;
+    var gm=gridGeo();
+    list.forEach(function(r,i){r.el.classList.add('tile');pos(r.el,gm.gp+(i%gm.cols)*(gm.w+gm.gp),gm.gp+Math.floor(i/gm.cols)*(gm.h+gm.gp),gm.w,gm.h);});
+    setTimeout(function(){grow(true)},260);save();
+  }
+
+  function add(){
+    var parts=input.value.split(/[\s,]+/).filter(Boolean),ok=0,bad=0;
+    var qe=document.getElementById('qty'),q=Math.max(1,Math.min(20,parseInt(qe.value,10)||1));qe.value=q;
+    parts.forEach(function(s){var p=parse(s);if(p){for(var i=0;i<q;i++){open(p);ok++}}else bad++;});
+    if(bad)note(bad+(bad>1?' links não são':' link não é')+' do YouTube. Use links como youtube.com/watch?v=… ou youtu.be/…',true);
+    else if(!ok)note('Cole um link do YouTube primeiro.',true);
+    else note(ok+(ok>1?' janelas abertas':' janela aberta')+(document.getElementById('minOpen').checked?' e minimizadas. Toque em ▢ para ampliar uma.':'.'));
+    if(ok)input.value='';
+  }
+  document.getElementById('add').onclick=add;
+  input.addEventListener('keydown',function(e){if(e.key==='Enter')add();});
+  document.getElementById('tile').onclick=tile;
+  var vs=document.getElementById('vs'),thumb=vs.firstElementChild;
+  function vsMove(y){var rc=vs.getBoundingClientRect(),th=thumb.offsetHeight,f=Math.max(0,Math.min(1,(y-rc.top-th/2)/(rc.height-th)));canvas.scrollTop=f*(canvas.scrollHeight-canvas.clientHeight);}
+  vs.addEventListener('pointerdown',function(e){
+    e.preventDefault();vs.setPointerCapture(e.pointerId);vsMove(e.clientY);
+    function mv(ev){vsMove(ev.clientY);}
+    function up(){vs.removeEventListener('pointermove',mv);vs.removeEventListener('pointerup',up);}
+    vs.addEventListener('pointermove',mv);vs.addEventListener('pointerup',up);
+  });
+  document.getElementById('hide').onclick=function(){
+    var off=document.getElementById('ctl').classList.toggle('off');
+    this.textContent=off?'Mostrar ▼':'Recolher ▲';
+    setTimeout(function(){window.dispatchEvent(new Event('resize'));grow(true);},30);
+  };
+  document.getElementById('tprev').onclick=function(){toff=Math.max(0,toff-perRow());dock();};
+  document.getElementById('tnext').onclick=function(){toff+=perRow();dock();};
+  document.getElementById('more').onclick=function(){extra+=canvas.clientHeight;grow(true);canvas.scrollTo({top:canvas.scrollHeight,behavior:'smooth'});note('Área ampliada. Role para baixo para usar o espaço novo.');};
+  document.getElementById('clear').onclick=function(){wins.forEach(function(r){r.el.remove()});wins=[];extra=0;sync();note('');};
+
+  try{(JSON.parse(localStorage.getItem('ytmulti2')||'[]')||[]).forEach(function(r){if(r&&r.p&&(r.p.v||r.p.list))open(r.p,r.g,r.m)});}catch(e){}
+  if(anyOverlap())tile();
+  sync();
+})();
+</script>
+</body>
+</html>
